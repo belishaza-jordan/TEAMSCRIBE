@@ -1,9 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 
 /// First screen users see on launch — shown for ~1.8 s.
 ///
@@ -68,10 +70,23 @@ class _SplashScreenState extends State<SplashScreen>
     final hasSeen = prefs.getBool(_kOnboardingKey) ?? false;
 
     if (!mounted) return;
-    Navigator.pushReplacementNamed(
-      context,
-      hasSeen ? AppRoutes.login : AppRoutes.onboarding,
-    );
+
+    if (hasSeen) {
+      final auth     = context.read<AuthProvider>();
+      final restored = await auth.restoreSession();
+      if (!mounted) return;
+
+      String dest = AppRoutes.login;
+      if (restored) {
+        // Verified → home, unverified → ask them to check email
+        dest = auth.isEmailVerified
+            ? AppRoutes.home
+            : AppRoutes.emailVerification;
+      }
+      Navigator.pushReplacementNamed(context, dest);
+    } else {
+      Navigator.pushReplacementNamed(context, AppRoutes.onboarding);
+    }
   }
 
   @override

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/validators.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
@@ -23,6 +25,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey              = GlobalKey<FormState>();
   final _nameController       = TextEditingController();
   final _emailController      = TextEditingController();
+  final _universityController = TextEditingController();
   final _passwordController   = TextEditingController();
   final _confirmController    = TextEditingController();
   bool _isLoading = false;
@@ -31,19 +34,40 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _universityController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
   }
 
-  /// Validates the form, simulates a network call, then pushes Home.
   Future<void> _createAccount() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200)); // stub delay
+
+    final auth = context.read<AuthProvider>();
+    auth.clearError();
+    await auth.signup(
+      _nameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text,
+      _universityController.text.trim(),
+    );
+
     if (!mounted) return;
     setState(() => _isLoading = false);
-    Navigator.pushReplacementNamed(context, AppRoutes.home);
+
+    if (auth.isAuthenticated) {
+      // New users always need to verify email before accessing the app
+      Navigator.pushReplacementNamed(context, AppRoutes.emailVerification);
+    } else if (auth.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.error!),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -121,15 +145,27 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       const SizedBox(height: 16),
 
-                      // ── University email ─────────────────────────────
+                      // ── Email ────────────────────────────────────────
                       AppTextField(
-                        label:           'University email',
+                        label:           'Email',
                         icon:            Icons.mail_outline,
                         hintText:        'you@university.edu',
                         controller:      _emailController,
                         keyboardType:    TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
                         validator:       Validators.email,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── University ────────────────────────────────────
+                      AppTextField(
+                        label:           'University',
+                        icon:            Icons.school_outlined,
+                        hintText:        'e.g. MIT, Stanford, UCT',
+                        controller:      _universityController,
+                        textInputAction: TextInputAction.next,
+                        validator:       Validators.required('University'),
                       ),
 
                       const SizedBox(height: 16),

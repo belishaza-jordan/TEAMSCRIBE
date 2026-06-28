@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../config/routes.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../providers/group_provider.dart';
 import '../../widgets/common/app_text_field.dart';
 
 /// Screen for creating a new group — group name, course code, member search.
@@ -15,19 +16,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _formKey    = GlobalKey<FormState>();
   final _nameCtrl   = TextEditingController();
   final _courseCtrl = TextEditingController();
-  String _search    = '';
-
-  // Mock classmates list
-  static const _classmates = [
-    _Mate('AC', 'Alex Chen',   '@achen'),
-    _Mate('MR', 'Maya Reyes',  '@mreyes'),
-    _Mate('JK', 'Jordan Kim',  '@jkim'),
-    _Mate('PN', 'Priya Nair',  '@pnair'),
-    _Mate('DL', 'Diego Lopez', '@dlopez'),
-    _Mate('HS', 'Hana Sato',   '@hsato'),
-  ];
-
-  final Set<String> _selected = {};
+  bool  _isLoading  = false;
 
   @override
   void dispose() {
@@ -38,21 +27,34 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    // Stub — replace with real API call
-    await Future.delayed(const Duration(milliseconds: 800));
+    setState(() => _isLoading = true);
+
+    final provider = context.read<GroupProvider>();
+    provider.clearError();
+
+    final group = await provider.createGroup(
+      name:   _nameCtrl.text.trim(),
+      course: _courseCtrl.text.trim(),
+    );
+
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, AppRoutes.home);
+    setState(() => _isLoading = false);
+
+    if (group != null) {
+      Navigator.pop(context); // go back — GroupsScreen will refresh
+    } else if (provider.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:         Text(provider.error!),
+          backgroundColor: AppColors.danger,
+          behavior:        SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _classmates
-        .where((m) =>
-            _search.isEmpty ||
-            m.name.toLowerCase().contains(_search.toLowerCase()) ||
-            m.username.toLowerCase().contains(_search.toLowerCase()))
-        .toList();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       // Fixed "Create group" button at the bottom
@@ -63,19 +65,25 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         child: SizedBox(
           height: 50,
           child: FilledButton(
-            onPressed: _submit,
+            onPressed: _isLoading ? null : _submit,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.blue,
+              backgroundColor:         AppColors.blue,
+              disabledBackgroundColor: AppColors.blue.withValues(alpha: 0.55),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text(
-              'Create group',
-              style: TextStyle(
-                  color: AppColors.whiteText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600),
-            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : const Text(
+                    'Create group',
+                    style: TextStyle(
+                        color:      AppColors.whiteText,
+                        fontSize:   16,
+                        fontWeight: FontWeight.w600),
+                  ),
           ),
         ),
       ),
@@ -135,52 +143,42 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
               const SizedBox(height: 24),
 
-              // ── Add members header ───────────────────────────────────
-              const Text(
-                'Add members',
-                style: TextStyle(
-                    color:      AppColors.whiteText,
-                    fontSize:   18,
-                    fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── Search bar ───────────────────────────────────────────
+              // ── How to add members ───────────────────────────────────
               Container(
-                height: 46,
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color:        AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   border:       Border.all(color: AppColors.border),
                 ),
-                child: TextField(
-                  onChanged: (v) => setState(() => _search = v),
-                  style: const TextStyle(color: AppColors.whiteText, fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: 'Search classmates',
-                    hintStyle: TextStyle(color: AppColors.grayText, fontSize: 14),
-                    prefixIcon: Icon(Icons.search, color: AppColors.grayText, size: 20),
-                    border:  InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // ── Classmate list ───────────────────────────────────────
-              ...filtered.map(
-                (m) => _MemberTile(
-                  mate:       m,
-                  isSelected: _selected.contains(m.username),
-                  onToggle:   () => setState(() {
-                    if (_selected.contains(m.username)) {
-                      _selected.remove(m.username);
-                    } else {
-                      _selected.add(m.username);
-                    }
-                  }),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Icon(Icons.vpn_key_outlined,
+                        color: AppColors.linkBlue, size: 22),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Members join via invite code',
+                              style: TextStyle(
+                                  color:      AppColors.whiteText,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize:   14)),
+                          SizedBox(height: 4),
+                          Text(
+                            'After creating the group you\'ll get a 6-character code. '
+                            'Share it on WhatsApp — anyone who enters it joins instantly.',
+                            style: TextStyle(
+                                color: AppColors.grayText,
+                                fontSize: 13,
+                                height:   1.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -191,75 +189,3 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 }
 
-// ─── Member tile ──────────────────────────────────────────────────────────────
-
-class _MemberTile extends StatelessWidget {
-  final _Mate       mate;
-  final bool        isSelected;
-  final VoidCallback onToggle;
-
-  const _MemberTile(
-      {required this.mate, required this.isSelected, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundColor: _avatarColor(mate.initials),
-          child: Text(
-            mate.initials,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-        ),
-        title: Text(mate.name,
-            style: const TextStyle(
-                color: AppColors.whiteText,
-                fontWeight: FontWeight.w600,
-                fontSize: 14)),
-        subtitle: Text(mate.username,
-            style: const TextStyle(color: AppColors.grayText, fontSize: 13)),
-        trailing: GestureDetector(
-          onTap: onToggle,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width:  34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.blue : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: isSelected ? AppColors.blue : AppColors.border),
-            ),
-            child: Icon(
-              isSelected ? Icons.check : Icons.add,
-              color: isSelected ? Colors.white : AppColors.grayText,
-              size:  18,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Helpers & data ───────────────────────────────────────────────────────────
-
-Color _avatarColor(String s) {
-  const colors = [
-    Color(0xFF1E3A5F), Color(0xFF1A3D2B), Color(0xFF3D1F4D),
-    Color(0xFF4D2C1A), Color(0xFF1D3640), Color(0xFF3D3220),
-  ];
-  int h = 0;
-  for (final c in s.codeUnits) { h += c; }
-  return colors[h % colors.length];
-}
-
-class _Mate {
-  final String initials, name, username;
-  const _Mate(this.initials, this.name, this.username);
-}

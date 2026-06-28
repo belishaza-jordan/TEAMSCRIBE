@@ -23,7 +23,7 @@ class GroupCard extends StatelessWidget {
         title: Text(group.name,
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
-          '${group.memberIds.length} members',
+          '${group.memberCount} members',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         trailing: const Icon(Icons.chevron_right),

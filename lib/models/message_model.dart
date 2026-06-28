@@ -1,35 +1,30 @@
 class MessageModel {
-  final String id;
-  final String groupId;
-  final String senderId;
-  final String content;
-  final DateTime sentAt;
-  final bool isRead;
+  final String   id;
+  final String   groupId;
+  final String   userId;
+  final String   senderName;
+  final String   senderInitials;
+  final String   content;
+  final DateTime createdAt;
 
   const MessageModel({
     required this.id,
     required this.groupId,
-    required this.senderId,
+    required this.userId,
+    required this.senderName,
+    required this.senderInitials,
     required this.content,
-    required this.sentAt,
-    required this.isRead,
+    required this.createdAt,
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) => MessageModel(
-        id: json['id'] as String,
-        groupId: json['group_id'] as String,
-        senderId: json['sender_id'] as String,
-        content: json['content'] as String,
-        sentAt: DateTime.parse(json['sent_at'] as String),
-        isRead: json['is_read'] as bool,
+        id:             json['id'].toString(),
+        groupId:        json['group_id'].toString(),
+        userId:         json['user_id'].toString(),
+        senderName:     json['sender_name']     as String? ?? 'Unknown',
+        senderInitials: json['sender_initials'] as String? ?? '?',
+        content:        json['content']         as String,
+        createdAt:      DateTime.tryParse(json['created_at'] as String? ?? '') ??
+            DateTime.now(),
       );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'group_id': groupId,
-        'sender_id': senderId,
-        'content': content,
-        'sent_at': sentAt.toIso8601String(),
-        'is_read': isRead,
-      };
 }

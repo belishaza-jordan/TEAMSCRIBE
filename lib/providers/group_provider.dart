@@ -5,53 +5,211 @@ import '../services/group_service.dart';
 class GroupProvider extends ChangeNotifier {
   final GroupService _groupService;
 
-  List<GroupModel> _groups = [];
-  GroupModel? _selectedGroup;
-  bool _isLoading = false;
-  String? _error;
+  List<GroupModel> _groups      = [];
+  GroupModel?      _activeGroup;
+  bool             _isLoading   = false;
+  String?          _error;
 
   GroupProvider(this._groupService);
 
-  List<GroupModel> get groups => _groups;
-  GroupModel? get selectedGroup => _selectedGroup;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
+  List<GroupModel> get groups       => _groups;
+  GroupModel?      get activeGroup  => _activeGroup;
+  bool             get isLoading    => _isLoading;
+  String?          get error        => _error;
+  GroupService     get service      => _groupService;
+
+  String _extractMessage(Object e) {
+    final s = e.toString();
+    final i = s.indexOf(': ');
+    return i != -1 ? s.substring(i + 2) : s;
+  }
 
   Future<void> fetchGroups() async {
     _setLoading(true);
     try {
       _groups = await _groupService.fetchMyGroups();
-      _error = null;
+      _error  = null;
     } catch (e) {
-      _error = e.toString();
+      _error = _extractMessage(e);
     } finally {
       _setLoading(false);
     }
   }
 
-  Future<void> selectGroup(String groupId) async {
+  Future<void> loadGroup(String groupId) async {
     _setLoading(true);
     try {
-      _selectedGroup = await _groupService.fetchGroup(groupId);
+      _activeGroup = await _groupService.fetchGroup(groupId);
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = _extractMessage(e);
     } finally {
       _setLoading(false);
     }
   }
 
-  Future<void> createGroup(String name, String description) async {
+  Future<GroupModel?> createGroup({
+    required String name,
+    String? course,
+    String? description,
+  }) async {
     _setLoading(true);
     try {
-      final group = await _groupService.createGroup(name, description);
-      _groups = [..._groups, group];
-      _error = null;
+      final group = await _groupService.createGroup(
+        name:        name,
+        course:      course,
+        description: description,
+      );
+      _groups = [group, ..._groups];
+      _error  = null;
+      return group;
     } catch (e) {
-      _error = e.toString();
+      _error = _extractMessage(e);
+      return null;
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<bool> addMember(String groupId, String email) async {
+    try {
+      await _groupService.addMember(groupId, email);
+      await loadGroup(groupId); // refresh member list
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<String?> regenerateCode(String groupId) async {
+    try {
+      final newCode = await _groupService.regenerateCode(groupId);
+      // Update the cached group with the new code
+      _groups = _groups.map((g) {
+        if (g.id != groupId) return g;
+        return GroupModel(
+          id:            g.id,
+          name:          g.name,
+          course:        g.course,
+          description:   g.description,
+          createdBy:     g.createdBy,
+          joinCode:      newCode,
+          memberCount:   g.memberCount,
+          sectionsTotal: g.sectionsTotal,
+          sectionsDone:  g.sectionsDone,
+          progress:      g.progress,
+          members:       g.members,
+        );
+      }).toList();
+      if (_activeGroup?.id == groupId) {
+        _activeGroup = _groups.firstWhere((g) => g.id == groupId,
+            orElse: () => _activeGroup!);
+      }
+      notifyListeners();
+      _error = null;
+      return newCode;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<GroupModel?> joinGroup(String code) async {
+    _setLoading(true);
+    try {
+      final group = await _groupService.joinGroup(code);
+      if (!_groups.any((g) => g.id == group.id)) {
+        _groups = [group, ..._groups];
+      }
+      _error = null;
+      return group;
+    } catch (e) {
+      _error = _extractMessage(e);
+      return null;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> inviteByEmail(String groupId, String email) async {
+    try {
+      // Send email invitation with Accept/Reject buttons
+      await _groupService.sendEmailInvitation(groupId, email);
+      _error = null;
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateGroup({
+    required String groupId,
+    required String name,
+    String? course,
+    String? description,
+  }) async {
+    _setLoading(true);
+    try {
+      final updated = await _groupService.updateGroup(
+        groupId:     groupId,
+        name:        name,
+        course:      course,
+        description: description,
+      );
+      _groups = _groups.map((g) => g.id == groupId ? updated : g).toList();
+      if (_activeGroup?.id == groupId) _activeGroup = updated;
+      _error = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> deleteGroup(String groupId) async {
+    try {
+      await _groupService.deleteGroup(groupId);
+      _groups = _groups.where((g) => g.id != groupId).toList();
+      if (_activeGroup?.id == groupId) _activeGroup = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> removeMember(String groupId, String userId) async {
+    try {
+      await _groupService.removeMember(groupId, userId);
+      _groups = _groups.where((g) => g.id != groupId).toList();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void clearActiveGroup() {
+    _activeGroup = null;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
   }
 
   void _setLoading(bool value) {

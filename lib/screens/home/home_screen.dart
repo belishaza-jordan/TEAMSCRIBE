@@ -1,38 +1,98 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../models/group_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/group_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  // ── Mock data ──────────────────────────────────────────────────────────────
-  static const _groups = [
-    _GroupData('Climate Policy Brief',    'POLS 340', 2, 5,  '2m ago'),
-    _GroupData('Database Systems Report', 'CS 425',   4, 6,  '12m ago'),
-    _GroupData('Marketing Launch Plan',   'MKTG 210', 9, 10, '1h ago'),
-  ];
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<GroupProvider>().fetchGroups();
+    });
+  }
+
+  /// Returns "Good morning", "Good afternoon", or "Good evening"
+  /// based on the current hour.
+  static String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user      = context.watch<AuthProvider>().currentUser;
+    final groups    = context.watch<GroupProvider>().groups;
+    final firstName = user?.name.split(' ').first ?? 'there';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _HomeAppBar(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.createGroup),
+        onPressed: () async {
+          await Navigator.pushNamed(context, AppRoutes.createGroup);
+          if (context.mounted) context.read<GroupProvider>().fetchGroups();
+        },
         backgroundColor: AppColors.blue,
         child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
-          // ── Stats row ──────────────────────────────────────────────
+          // ── Greeting ───────────────────────────────────────────────
+          Text(
+            '${_greeting()}, $firstName 👋',
+            style: const TextStyle(
+              color:         AppColors.whiteText,
+              fontSize:      22,
+              fontWeight:    FontWeight.bold,
+              letterSpacing: -0.3,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          const Text(
+            'Here\'s your project overview.',
+            style: TextStyle(color: AppColors.grayText, fontSize: 13),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Stats row (driven by real group data) ──────────────────
           Row(
-            children: const [
-              Expanded(child: _StatCard('Groups',   '3',  false)),
-              SizedBox(width: 10),
-              Expanded(child: _StatCard('Due soon', '2',  false)),
-              SizedBox(width: 10),
-              Expanded(child: _StatCard('Unread',   '5',  true)),
+            children: [
+              Expanded(child: _StatCard('Groups', '${groups.length}', false)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatCard(
+                  'Progress',
+                  groups.isEmpty
+                      ? '0%'
+                      : '${(groups.fold<int>(0, (s, g) => s + g.progress) ~/ groups.length)}%',
+                  false,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatCard(
+                  'Done',
+                  '${groups.fold<int>(0, (s, g) => s + g.sectionsDone)}',
+                  true,
+                ),
+              ),
             ],
           ),
 
@@ -50,16 +110,35 @@ class HomeScreen extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // ── Group cards ────────────────────────────────────────────
-          ..._groups.map(
-            (g) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _GroupCard(
-                data: g,
-                onTap: () => Navigator.pushNamed(context, AppRoutes.groupDetail),
+          if (groups.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: Center(
+                child: Text(
+                  'No groups yet — tap + to create one.',
+                  style: TextStyle(color: AppColors.grayText, fontSize: 14),
+                ),
+              ),
+            )
+          else
+            ...groups.map(
+              (g) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _GroupCard(
+                  data: g,
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.groupDetail,
+                    arguments: {
+                      'id':        g.id,
+                      'name':      g.name,
+                      'course':    g.course ?? '',
+                      'join_code': g.joinCode ?? '',
+                    },
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -109,11 +188,11 @@ class _HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.search, color: AppColors.grayText, size: 22),
-          onPressed: () {},
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.search),
         ),
         IconButton(
           icon: const Icon(Icons.notifications_outlined, color: AppColors.grayText, size: 22),
-          onPressed: () {},
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
         ),
         const SizedBox(width: 4),
       ],
@@ -168,15 +247,14 @@ class _StatCard extends StatelessWidget {
 // ─── Group card ───────────────────────────────────────────────────────────────
 
 class _GroupCard extends StatelessWidget {
-  final _GroupData data;
+  final GroupModel   data;
   final VoidCallback onTap;
 
   const _GroupCard({required this.data, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final pct      = (data.done / data.total * 100).round();
-    final progress = data.done / data.total;
+    final progress = data.progress / 100.0;
 
     return GestureDetector(
       onTap: onTap,
@@ -190,7 +268,6 @@ class _GroupCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Name + course code
             Row(
               children: [
                 Expanded(
@@ -203,23 +280,23 @@ class _GroupCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    border:       Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(6),
+                if (data.course != null && data.course!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      border:       Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(data.course!,
+                        style: const TextStyle(
+                            color: AppColors.grayText, fontSize: 11)),
                   ),
-                  child: Text(
-                    data.course,
-                    style: const TextStyle(color: AppColors.grayText, fontSize: 11),
-                  ),
-                ),
               ],
             ),
 
             const SizedBox(height: 10),
 
-            // Progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
@@ -232,26 +309,21 @@ class _GroupCard extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // Sections + time
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    '${data.done}/${data.total} sections · $pct%',
-                    style: const TextStyle(color: AppColors.grayText, fontSize: 12),
+                    '${data.sectionsDone}/${data.sectionsTotal} sections · ${data.progress}%',
+                    style: const TextStyle(
+                        color: AppColors.grayText, fontSize: 12),
                   ),
                 ),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time_outlined,
-                        size: 13, color: AppColors.grayText),
-                    const SizedBox(width: 3),
-                    Text(
-                      data.lastActivity,
-                      style: const TextStyle(color: AppColors.grayText, fontSize: 12),
-                    ),
-                  ],
-                ),
+                const Icon(Icons.people_outline,
+                    size: 13, color: AppColors.grayText),
+                const SizedBox(width: 3),
+                Text('${data.memberCount} members',
+                    style: const TextStyle(
+                        color: AppColors.grayText, fontSize: 12)),
               ],
             ),
           ],
@@ -261,14 +333,3 @@ class _GroupCard extends StatelessWidget {
   }
 }
 
-// ─── Data model ───────────────────────────────────────────────────────────────
-
-class _GroupData {
-  final String name;
-  final String course;
-  final int    done;
-  final int    total;
-  final String lastActivity;
-
-  const _GroupData(this.name, this.course, this.done, this.total, this.lastActivity);
-}

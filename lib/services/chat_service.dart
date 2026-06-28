@@ -9,7 +9,7 @@ class ChatService {
 
   Future<List<MessageModel>> fetchMessages(String groupId) async {
     final data = await _api
-        .get('${ApiConfig.groupsEndpoint}/$groupId${ApiConfig.chatEndpoint}');
+        .get('${ApiConfig.groupsEndpoint}/$groupId/messages');
     return (data['messages'] as List)
         .map((e) => MessageModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -17,14 +17,9 @@ class ChatService {
 
   Future<MessageModel> sendMessage(String groupId, String content) async {
     final data = await _api.post(
-        '${ApiConfig.groupsEndpoint}/$groupId${ApiConfig.chatEndpoint}',
+        '${ApiConfig.groupsEndpoint}/$groupId/messages',
         {'content': content});
-    return MessageModel.fromJson(data['message'] as Map<String, dynamic>);
-  }
-
-  Future<void> markRead(String groupId) async {
-    await _api.put(
-        '${ApiConfig.groupsEndpoint}/$groupId${ApiConfig.chatEndpoint}/read',
-        {});
+    return MessageModel.fromJson(
+        data['message'] as Map<String, dynamic>);
   }
 }

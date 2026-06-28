@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/Users/sportpesa/Library/Application Support/Herd/bin/php85",
+            "args": [
+                "/Users/sportpesa/TEAMSCRIBE/backends/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}

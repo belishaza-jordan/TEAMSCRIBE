@@ -1,94 +1,127 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../models/group_model.dart';
+import '../../providers/group_provider.dart';
 
-/// "Chat" tab — shows recent conversations across all groups.
-class ChatListScreen extends StatelessWidget {
+class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
-  static const _chats = [
-    _Chat('Climate Policy Brief',    'POLS 340', 'Priya: About 30% through, should have the charts ready by Friday', '9:31', true),
-    _Chat('Database Systems Report', 'CS 425',   'Alex: I updated the ER diagram, take a look',                      'Yesterday', false),
-    _Chat('Marketing Launch Plan',   'MKTG 210', 'Diego: Final section merged and exported!',                        'Mon', false),
-  ];
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<GroupProvider>().fetchGroups();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<GroupProvider>();
+    final groups   = provider.groups;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor:           AppColors.background,
         elevation:                 0,
+        scrolledUnderElevation:    0,
         automaticallyImplyLeading: false,
         title: const Text(
           'Messages',
           style: TextStyle(
-              color: AppColors.whiteText, fontSize: 20, fontWeight: FontWeight.bold),
+              color:      AppColors.whiteText,
+              fontSize:   20,
+              fontWeight: FontWeight.bold),
         ),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _chats.length,
-        separatorBuilder: (_, i) =>
-            Divider(height: 1, color: AppColors.border, indent: 72),
-        itemBuilder: (context, i) => _ChatTile(
-          chat: _chats[i],
-          onTap: () => Navigator.pushNamed(context, AppRoutes.groupDetail),
-        ),
-      ),
+      body: provider.isLoading && groups.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.blue))
+          : groups.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No groups yet — create or join one to start chatting.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: AppColors.grayText, fontSize: 14),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: groups.length,
+                  separatorBuilder: (_, index) =>
+                      const Divider(height: 1, color: AppColors.border,
+                          indent: 72),
+                  itemBuilder: (context, i) => _GroupChatTile(
+                    group: groups[i],
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.groupDetail,
+                      arguments: {
+                        'id':     groups[i].id,
+                        'name':   groups[i].name,
+                        'course': groups[i].course ?? '',
+                      },
+                    ),
+                  ),
+                ),
     );
   }
 }
 
-class _ChatTile extends StatelessWidget {
-  final _Chat chat;
+class _GroupChatTile extends StatelessWidget {
+  final GroupModel   group;
   final VoidCallback onTap;
 
-  const _ChatTile({required this.chat, required this.onTap});
+  const _GroupChatTile({required this.group, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final initials = chat.name.split(' ').map((w) => w[0]).take(2).join();
+    final initials = group.name
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: CircleAvatar(
-        radius: 24,
+        radius:          24,
         backgroundColor: _color(initials),
         child: Text(initials,
             style: const TextStyle(
-                color: Colors.white,
+                color:      Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14)),
+                fontSize:   14)),
       ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(chat.name,
-                style: const TextStyle(
-                    color: AppColors.whiteText,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
-          ),
-          Text(chat.time,
-              style: TextStyle(
-                  color: chat.unread ? AppColors.blue : AppColors.grayText,
-                  fontSize: 12)),
-        ],
+      title: Text(
+        group.name,
+        style: const TextStyle(
+            color:      AppColors.whiteText,
+            fontWeight: FontWeight.w600,
+            fontSize:   14),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(
-          chat.lastMessage,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: chat.unread ? AppColors.whiteText : AppColors.grayText,
-            fontSize: 13,
-            fontWeight: chat.unread ? FontWeight.w500 : FontWeight.normal,
-          ),
+          group.course != null && group.course!.isNotEmpty
+              ? '${group.course} · ${group.memberCount} members'
+              : '${group.memberCount} members',
+          style: const TextStyle(color: AppColors.grayText, fontSize: 13),
         ),
       ),
+      trailing: const Icon(Icons.chevron_right,
+          color: AppColors.grayText, size: 18),
     );
   }
 
@@ -101,10 +134,4 @@ class _ChatTile extends StatelessWidget {
     for (final x in s.codeUnits) { h += x; }
     return c[h % c.length];
   }
-}
-
-class _Chat {
-  final String name, course, lastMessage, time;
-  final bool unread;
-  const _Chat(this.name, this.course, this.lastMessage, this.time, this.unread);
 }

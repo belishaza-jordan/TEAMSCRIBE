@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../models/message_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/chat_provider.dart';
 
 class GroupChatTab extends StatefulWidget {
-  const GroupChatTab({super.key});
+  final String groupId;
+  const GroupChatTab({super.key, required this.groupId});
 
   @override
   State<GroupChatTab> createState() => _GroupChatTabState();
@@ -12,14 +17,6 @@ class _GroupChatTabState extends State<GroupChatTab> {
   final _controller = TextEditingController();
   final _scrollCtrl = ScrollController();
 
-  static const _messages = [
-    _Msg('MR', 'Maya',   'Just pushed the intro section — take a look when you get a chance', '9:02', false),
-    _Msg('',   '',       'Looks great, clean structure. I\'ll start methodology tonight',      '9:05', true),
-    _Msg('JK', 'Jordan', 'Lit review is done — 12 sources cited and formatted',               '9:14', false),
-    _Msg('',   '',       'Nice work. Priya, how is the data analysis coming?',                 '9:20', true),
-    _Msg('PN', 'Priya',  'About 30% through, should have the charts ready by Friday',         '9:31', false),
-  ];
-
   @override
   void dispose() {
     _controller.dispose();
@@ -27,22 +24,69 @@ class _GroupChatTabState extends State<GroupChatTab> {
     super.dispose();
   }
 
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    _controller.clear();
+
+    context.read<ChatProvider>().sendMessage(widget.groupId, text);
+
+    // Scroll to bottom after the frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ChatProvider>();
+    final userId   = context.watch<AuthProvider>().currentUser?.id ?? '';
+
+    // Auto-scroll when new messages arrive
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
     return Column(
       children: [
-        // ── Messages list ─────────────────────────────────────────────
         Expanded(
-          child: ListView.builder(
-            controller:    _scrollCtrl,
-            padding:       const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            itemCount:     _messages.length,
-            itemBuilder:   (_, i) => _BubbleRow(msg: _messages[i]),
-          ),
+          child: provider.isLoading && provider.messages.isEmpty
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.blue))
+              : provider.messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No messages yet. Say hi! 👋',
+                        style: TextStyle(
+                            color: AppColors.grayText, fontSize: 14),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller:  _scrollCtrl,
+                      padding:     const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      itemCount:   provider.messages.length,
+                      itemBuilder: (_, i) => _BubbleRow(
+                        msg:  provider.messages[i],
+                        isMe: provider.messages[i].userId == userId,
+                      ),
+                    ),
         ),
-
-        // ── Input bar ─────────────────────────────────────────────────
-        _InputBar(controller: _controller),
+        _InputBar(
+          controller: _controller,
+          onSend:     _send,
+        ),
       ],
     );
   }
@@ -51,13 +95,20 @@ class _GroupChatTabState extends State<GroupChatTab> {
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
 class _BubbleRow extends StatelessWidget {
-  final _Msg msg;
+  final MessageModel msg;
+  final bool         isMe;
 
-  const _BubbleRow({required this.msg});
+  const _BubbleRow({required this.msg, required this.isMe});
+
+  String _formatTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (msg.isMe) {
+    if (isMe) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(
@@ -73,9 +124,9 @@ class _BubbleRow extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color:        AppColors.blue,
-                      borderRadius: const BorderRadius.only(
+                    decoration: const BoxDecoration(
+                      color: AppColors.blue,
+                      borderRadius: BorderRadius.only(
                         topLeft:     Radius.circular(16),
                         topRight:    Radius.circular(16),
                         bottomLeft:  Radius.circular(16),
@@ -84,11 +135,13 @@ class _BubbleRow extends StatelessWidget {
                     ),
                     child: Text(msg.content,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 14, height: 1.4)),
+                            color:  Colors.white,
+                            fontSize: 14,
+                            height:   1.4)),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(msg.time,
+                Text(_formatTime(msg.createdAt),
                     style: const TextStyle(
                         color: AppColors.grayText, fontSize: 11)),
               ],
@@ -98,7 +151,6 @@ class _BubbleRow extends StatelessWidget {
       );
     }
 
-    // Others' message
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -106,8 +158,8 @@ class _BubbleRow extends StatelessWidget {
         children: [
           CircleAvatar(
             radius:          18,
-            backgroundColor: _avatarColor(msg.initials),
-            child: Text(msg.initials,
+            backgroundColor: _avatarColor(msg.senderInitials),
+            child: Text(msg.senderInitials,
                 style: const TextStyle(
                     color:      Colors.white,
                     fontWeight: FontWeight.bold,
@@ -135,11 +187,13 @@ class _BubbleRow extends StatelessWidget {
                   ),
                   child: Text(msg.content,
                       style: const TextStyle(
-                          color: AppColors.whiteText, fontSize: 14, height: 1.4)),
+                          color:    AppColors.whiteText,
+                          fontSize: 14,
+                          height:   1.4)),
                 ),
               ),
               const SizedBox(height: 4),
-              Text('${msg.sender} · ${msg.time}',
+              Text('${msg.senderName} · ${_formatTime(msg.createdAt)}',
                   style: const TextStyle(
                       color: AppColors.grayText, fontSize: 11)),
             ],
@@ -150,37 +204,29 @@ class _BubbleRow extends StatelessWidget {
   }
 }
 
-// ─── Chat input bar ───────────────────────────────────────────────────────────
+// ─── Input bar ────────────────────────────────────────────────────────────────
 
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
+  final VoidCallback           onSend;
 
-  const _InputBar({required this.controller});
+  const _InputBar({required this.controller, required this.onSend});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color:  AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+        border: Border(
+            top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       padding: EdgeInsets.fromLTRB(
-          12, 10, 12, MediaQuery.of(context).viewInsets.bottom + 12),
+          12, 10, 12,
+          MediaQuery.of(context).viewInsets.bottom + 12),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            // Attachment
-            GestureDetector(
-              onTap: () {},
-              child: const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.attach_file_outlined,
-                    color: AppColors.grayText, size: 22),
-              ),
-            ),
-
-            // Text field
             Expanded(
               child: Container(
                 height: 42,
@@ -190,25 +236,24 @@ class _InputBar extends StatelessWidget {
                   border:       Border.all(color: AppColors.border),
                 ),
                 child: TextField(
-                  controller: controller,
+                  controller:      controller,
+                  onSubmitted:     (_) => onSend(),
+                  textInputAction: TextInputAction.send,
                   style: const TextStyle(
                       color: AppColors.whiteText, fontSize: 14),
                   decoration: const InputDecoration(
-                    hintText:        'Message',
-                    hintStyle:       TextStyle(color: AppColors.grayText),
-                    border:          InputBorder.none,
-                    contentPadding:  EdgeInsets.symmetric(
+                    hintText:       'Message',
+                    hintStyle:      TextStyle(color: AppColors.grayText),
+                    border:         InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
                         horizontal: 16, vertical: 11),
                   ),
                 ),
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Send button
             GestureDetector(
-              onTap: () {},
+              onTap: onSend,
               child: Container(
                 width:  42,
                 height: 42,
@@ -227,7 +272,7 @@ class _InputBar extends StatelessWidget {
   }
 }
 
-// ─── Helpers & data ───────────────────────────────────────────────────────────
+// ─── Helper ───────────────────────────────────────────────────────────────────
 
 Color _avatarColor(String s) {
   const colors = [
@@ -237,10 +282,4 @@ Color _avatarColor(String s) {
   int h = 0;
   for (final c in s.codeUnits) { h += c; }
   return colors[h % colors.length];
-}
-
-class _Msg {
-  final String initials, sender, content, time;
-  final bool   isMe;
-  const _Msg(this.initials, this.sender, this.content, this.time, this.isMe);
 }

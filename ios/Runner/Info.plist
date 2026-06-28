@@ -66,5 +66,24 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Firebase Cloud Messaging — required on real devices -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+
+	<!-- Background modes required for FCM push notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- Image picker — required for profile photo upload on real device -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TeamScribe needs access to your photo library to set your profile picture.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TeamScribe needs camera access to take a profile photo.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>TeamScribe saves photos to your library.</string>
 </dict>
 </plist>

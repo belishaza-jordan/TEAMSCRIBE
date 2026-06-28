@@ -9,7 +9,7 @@ class MergeExportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final group = context.watch<GroupProvider>().selectedGroup;
+    final group = context.watch<GroupProvider>().activeGroup;
     final sections = context.watch<SectionProvider>().sections;
 
     return Scaffold(

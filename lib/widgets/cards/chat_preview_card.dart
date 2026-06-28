@@ -28,7 +28,7 @@ class ChatPreviewCard extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       trailing: Text(
-        DateFormatter.timeAgo(lastMessage.sentAt),
+        DateFormatter.timeAgo(lastMessage.createdAt),
         style: Theme.of(context).textTheme.bodySmall,
       ),
     );

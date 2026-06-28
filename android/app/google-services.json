@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "468005640132",
+    "project_id": "team-scribe",
+    "storage_bucket": "team-scribe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468005640132:android:ea34bc1a595f8a82b27691",
+        "android_client_info": {
+          "package_name": "com.example.teamscribe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAH0TzB8hJKz1vj2azpHRYPJQCpmz-1hNw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

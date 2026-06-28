@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/validators.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
@@ -30,14 +32,35 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Validates the form, simulates a network call, then pushes Home.
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200)); // stub delay
+
+    final auth = context.read<AuthProvider>();
+    auth.clearError();
+    await auth.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
+
     if (!mounted) return;
     setState(() => _isLoading = false);
-    Navigator.pushReplacementNamed(context, AppRoutes.home);
+
+    if (auth.isAuthenticated) {
+      // If email is not verified, redirect to verification screen first
+      final dest = auth.isEmailVerified
+          ? AppRoutes.home
+          : AppRoutes.emailVerification;
+      Navigator.pushReplacementNamed(context, dest);
+    } else if (auth.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.error!),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -159,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {}, // stub — password-reset flow comes later
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
                     style: TextButton.styleFrom(
                       padding:         EdgeInsets.zero,
                       minimumSize:     Size.zero,

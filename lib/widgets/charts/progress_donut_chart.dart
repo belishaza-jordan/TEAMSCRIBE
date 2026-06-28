@@ -11,14 +11,9 @@ class ProgressDonutChart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (sections.isEmpty) return const SizedBox.shrink();
 
-    final approved =
-        sections.where((s) => s.status == SectionStatus.approved).length;
-    final inProgress =
-        sections.where((s) => s.status == SectionStatus.inProgress).length;
-    final pending =
-        sections.where((s) => s.status == SectionStatus.pending).length;
-    final submitted =
-        sections.where((s) => s.status == SectionStatus.submitted).length;
+    final done       = sections.where((s) => s.status == 'done').length;
+    final inProgress = sections.where((s) => s.status == 'in_progress').length;
+    final pending    = sections.where((s) => s.status == 'not_started').length;
 
     return SizedBox(
       height: 160,
@@ -27,11 +22,11 @@ class ProgressDonutChart extends StatelessWidget {
           sectionsSpace: 2,
           centerSpaceRadius: 50,
           sections: [
-            if (approved > 0)
+            if (done > 0)
               PieChartSectionData(
-                value: approved.toDouble(),
+                value: done.toDouble(),
                 color: Colors.green,
-                title: '$approved',
+                title: '$done',
                 radius: 30,
               ),
             if (inProgress > 0)
@@ -39,13 +34,6 @@ class ProgressDonutChart extends StatelessWidget {
                 value: inProgress.toDouble(),
                 color: Colors.blue,
                 title: '$inProgress',
-                radius: 30,
-              ),
-            if (submitted > 0)
-              PieChartSectionData(
-                value: submitted.toDouble(),
-                color: Colors.orange,
-                title: '$submitted',
                 radius: 30,
               ),
             if (pending > 0)

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 
@@ -35,6 +36,18 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  Future<Map<String, dynamic>> patch(
+      String endpoint, Map<String, dynamic> body) async {
+    final response = await _client
+        .patch(
+          Uri.parse('${ApiConfig.baseUrl}$endpoint'),
+          headers: _headers,
+          body: jsonEncode(body),
+        )
+        .timeout(ApiConfig.timeout);
+    return _handleResponse(response);
+  }
+
   Future<Map<String, dynamic>> put(
       String endpoint, Map<String, dynamic> body) async {
     final response = await _client
@@ -54,10 +67,40 @@ class ApiService {
     _handleResponse(response);
   }
 
+  Future<Map<String, dynamic>> multipartPost(
+      String endpoint, File file, String fieldName) async {
+    final uri     = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final request = http.MultipartRequest('POST', uri);
+
+    if (_authToken != null) {
+      request.headers['Authorization'] = 'Bearer $_authToken';
+    }
+
+    request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
+
+    final streamed = await request.send().timeout(ApiConfig.timeout);
+    final response = await http.Response.fromStream(streamed);
+    return _handleResponse(response);
+  }
+
   Map<String, dynamic> _handleResponse(http.Response response) {
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode >= 200 && response.statusCode < 300) return body;
-    throw ApiException(response.statusCode, body['message'] as String? ?? 'Unknown error');
+
+    // For Laravel 422 validation errors, surface the first field-level message
+    // since it's more specific than the generic "message" summary.
+    String message = body['message'] as String? ?? 'Something went wrong';
+    if (response.statusCode == 422) {
+      final errors = body['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) {
+          message = first.first as String;
+        }
+      }
+    }
+
+    throw ApiException(response.statusCode, message);
   }
 }
 
