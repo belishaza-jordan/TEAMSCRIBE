@@ -1,5 +1,6 @@
 import '../config/api_config.dart';
 import '../models/group_model.dart';
+import '../models/invitation_model.dart';
 import 'api_service.dart';
 
 class GroupService {
@@ -88,5 +89,21 @@ class GroupService {
 
   Future<void> deleteGroup(String groupId) async {
     await _api.delete('${ApiConfig.groupsEndpoint}/$groupId');
+  }
+
+  Future<List<InvitationModel>> fetchInvitations() async {
+    final data = await _api.get('/invitations');
+    return (data['invitations'] as List)
+        .map((e) => InvitationModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<GroupModel> acceptInvitation(String invitationId) async {
+    final data = await _api.post('/invitations/$invitationId/accept', {});
+    return GroupModel.fromJson(data['group'] as Map<String, dynamic>);
+  }
+
+  Future<void> declineInvitation(String invitationId) async {
+    await _api.post('/invitations/$invitationId/decline', {});
   }
 }

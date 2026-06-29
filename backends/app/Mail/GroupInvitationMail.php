@@ -16,8 +16,6 @@ class GroupInvitationMail extends Mailable
 
     public function __construct(
         public readonly GroupInvitation $invitation,
-        public readonly string $acceptUrl,
-        public readonly string $rejectUrl,
     ) {}
 
     public function envelope(): Envelope

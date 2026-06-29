@@ -153,6 +153,7 @@ class _DetailAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   void _showJoinCode(BuildContext context) {
+    final provider = context.read<GroupProvider>();
     showModalBottomSheet<void>(
       context:         context,
       backgroundColor: AppColors.surface,
@@ -160,10 +161,12 @@ class _DetailAppBar extends StatelessWidget implements PreferredSizeWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => _JoinCodeSheet(
-        groupId:  groupId,
-        joinCode: joinCode ?? '',
-        isAdmin:  isAdmin,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: provider,
+        child: _JoinCodeSheet(
+          groupId:  groupId,
+          isAdmin:  isAdmin,
+        ),
       ),
     );
   }
@@ -172,6 +175,8 @@ class _DetailAppBar extends StatelessWidget implements PreferredSizeWidget {
     switch (value) {
       case 'members':
         _showMembersList(context);
+      case 'invite':
+        _showEmailInviteSheet(context);
       case 'delete':
         await _deleteGroup(context);
       case 'leave':
@@ -277,6 +282,166 @@ class _DetailAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showEmailInviteSheet(BuildContext context) {
+    final emailCtrl = TextEditingController();
+    final formKey   = GlobalKey<FormState>();
+    final provider  = context.read<GroupProvider>();
+
+    showModalBottomSheet<void>(
+      context:            context,
+      backgroundColor:    AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        bool sending = false;
+        return ChangeNotifierProvider.value(
+          value: provider,
+          child: StatefulBuilder(
+            builder: (ctx, setSheet) {
+            return Padding(
+            padding: EdgeInsets.fromLTRB(
+              24, 20, 24,
+              MediaQuery.of(ctx).viewInsets.bottom + 36,
+            ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36, height: 4,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color:        AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const Text(
+                    'Invite by email',
+                    style: TextStyle(
+                      color:      AppColors.whiteText,
+                      fontSize:   18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'They will receive an email with Accept & Decline buttons.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color:    AppColors.grayText,
+                      fontSize: 13,
+                      height:   1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller:   emailCtrl,
+                    autofocus:    true,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(color: AppColors.whiteText),
+                    decoration: InputDecoration(
+                      hintText:  'classmate@university.edu',
+                      hintStyle: const TextStyle(color: AppColors.grayText),
+                      prefixIcon: const Icon(
+                        Icons.mail_outline,
+                        color: AppColors.grayText,
+                        size: 20,
+                      ),
+                      filled:    true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:   const BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:   const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:   const BorderSide(
+                            color: AppColors.blue, width: 1.5),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Email is required';
+                      }
+                      if (!v.contains('@')) return 'Enter a valid email';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: sending
+                          ? null
+                          : () async {
+                              if (!formKey.currentState!.validate()) return;
+                              setSheet(() => sending = true);
+                              final provider =
+                                  context.read<GroupProvider>();
+                              final ok = await provider.inviteByEmail(
+                                groupId,
+                                emailCtrl.text.trim(),
+                              );
+                              if (!context.mounted) return;
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    ok
+                                        ? 'Invitation sent! They\'ll get an email to accept or decline.'
+                                        : provider.error ??
+                                            'Could not send invitation.',
+                                  ),
+                                  backgroundColor:
+                                      ok ? null : AppColors.danger,
+                                  behavior:
+                                      SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.blue,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: sending
+                          ? const SizedBox(
+                              height: 20,
+                              width:  20,
+                              child:  CircularProgressIndicator(
+                                color:       Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Send invitation',
+                              style: TextStyle(
+                                fontSize:   15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -402,6 +567,14 @@ class _DetailAppBar extends StatelessWidget implements PreferredSizeWidget {
                 Text('Members', style: TextStyle(color: AppColors.whiteText)),
               ]),
             ),
+            const PopupMenuItem(
+              value: 'invite',
+              child: Row(children: [
+                Icon(Icons.person_add_outlined, color: AppColors.blue, size: 18),
+                SizedBox(width: 10),
+                Text('Invite by email', style: TextStyle(color: AppColors.blue)),
+              ]),
+            ),
             if (isAdmin) ...[
               const PopupMenuItem(
                 value: 'edit',
@@ -487,12 +660,10 @@ class _TabPill extends StatelessWidget {
 
 class _JoinCodeSheet extends StatefulWidget {
   final String groupId;
-  final String joinCode;
   final bool   isAdmin;
 
   const _JoinCodeSheet({
     required this.groupId,
-    required this.joinCode,
     required this.isAdmin,
   });
 
@@ -503,28 +674,45 @@ class _JoinCodeSheet extends StatefulWidget {
 class _JoinCodeSheetState extends State<_JoinCodeSheet> {
   String? _code;
   bool    _isRegenerating = false;
+  bool    _isLoading      = true;
+  bool    _loadFailed     = false;
 
   @override
   void initState() {
     super.initState();
-    // Use code from navigation arg immediately if available
-    if (widget.joinCode.isNotEmpty) {
-      _code = widget.joinCode;
-    } else {
-      // Fetch directly from the API — no provider dependency
-      WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCode());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCode());
   }
 
   Future<void> _fetchCode() async {
     if (!mounted) return;
+    setState(() { _isLoading = true; _loadFailed = false; });
     try {
-      final service = context.read<GroupProvider>().service;
-      final code = await service.fetchJoinCode(widget.groupId)
-          .timeout(const Duration(seconds: 5));
-      if (mounted) setState(() => _code = code);
+      final provider = context.read<GroupProvider>();
+      // First check already-loaded active group — avoids an extra API round-trip
+      String? code = provider.activeGroup?.joinCode;
+
+      // If not available yet, hit the API directly
+      code ??= await provider.service
+          .fetchJoinCode(widget.groupId)
+          .timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+
+      if (code != null && code.trim().isNotEmpty) {
+        setState(() { _code = code!.trim(); _isLoading = false; });
+        return;
+      }
+
+      // No code in DB yet — auto-generate one
+      final newCode = await provider.regenerateCode(widget.groupId);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _code       = (newCode != null && newCode.isNotEmpty) ? newCode : null;
+        _loadFailed = _code == null;
+      });
     } catch (_) {
-      // Network unavailable — leave _code null (shows "—")
+      if (mounted) setState(() { _isLoading = false; _loadFailed = true; });
     }
   }
 
@@ -591,7 +779,7 @@ class _JoinCodeSheetState extends State<_JoinCodeSheet> {
 
           const SizedBox(height: 24),
 
-          // Code display — shows spinner while loading or regenerating
+          // Code display
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
             decoration: BoxDecoration(
@@ -602,7 +790,7 @@ class _JoinCodeSheetState extends State<_JoinCodeSheet> {
                 width: 1.5,
               ),
             ),
-            child: (_isRegenerating || displayCode == null)
+            child: (_isRegenerating || _isLoading)
                 ? const SizedBox(
                     height: 44,
                     child: Center(
@@ -610,15 +798,30 @@ class _JoinCodeSheetState extends State<_JoinCodeSheet> {
                           color: AppColors.blue, strokeWidth: 2),
                     ),
                   )
-                : Text(
-                    displayCode,
-                    style: const TextStyle(
-                      color:         AppColors.whiteText,
-                      fontSize:      36,
-                      fontWeight:    FontWeight.bold,
-                      letterSpacing: 10,
-                    ),
-                  ),
+                : _loadFailed
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Could not load code',
+                              style: TextStyle(color: AppColors.grayText, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _fetchCode,
+                            icon: const Icon(Icons.refresh, size: 16, color: AppColors.blue),
+                            label: const Text('Retry',
+                                style: TextStyle(color: AppColors.blue, fontSize: 13)),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        displayCode ?? '------',
+                        style: const TextStyle(
+                          color:         AppColors.whiteText,
+                          fontSize:      36,
+                          fontWeight:    FontWeight.bold,
+                          letterSpacing: 10,
+                        ),
+                      ),
           ),
 
           const SizedBox(height: 20),

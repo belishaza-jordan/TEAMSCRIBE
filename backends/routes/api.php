@@ -55,8 +55,12 @@ Route::prefix('v1')->group(function () {
         Route::delete('groups/{group}/members/{userId}', [GroupController::class, 'removeMember']);
         Route::post('groups/{group}/regenerate-code', [GroupController::class, 'regenerateCode']);
 
-        // Email invitations (send invite → email with accept/reject link)
+        // Email invitations
         Route::post('groups/{group}/invitations', [InvitationController::class, 'store']);
+        // My pending invitations — list, accept, decline inside the app
+        Route::get('invitations', [InvitationController::class, 'index']);
+        Route::post('invitations/{invitation}/accept', [InvitationController::class, 'accept']);
+        Route::post('invitations/{invitation}/decline', [InvitationController::class, 'decline']);
 
         // Messages (real-time via Reverb)
         Route::get('groups/{group}/messages', [MessageController::class, 'index']);

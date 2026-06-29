@@ -1,22 +1,25 @@
 import 'package:flutter/foundation.dart';
 import '../models/group_model.dart';
+import '../models/invitation_model.dart';
 import '../services/group_service.dart';
 
 class GroupProvider extends ChangeNotifier {
   final GroupService _groupService;
 
-  List<GroupModel> _groups      = [];
-  GroupModel?      _activeGroup;
-  bool             _isLoading   = false;
-  String?          _error;
+  List<GroupModel>      _groups      = [];
+  GroupModel?           _activeGroup;
+  List<InvitationModel> _invitations = [];
+  bool                  _isLoading   = false;
+  String?               _error;
 
   GroupProvider(this._groupService);
 
-  List<GroupModel> get groups       => _groups;
-  GroupModel?      get activeGroup  => _activeGroup;
-  bool             get isLoading    => _isLoading;
-  String?          get error        => _error;
-  GroupService     get service      => _groupService;
+  List<GroupModel>      get groups      => _groups;
+  GroupModel?           get activeGroup => _activeGroup;
+  List<InvitationModel> get invitations => _invitations;
+  bool                  get isLoading   => _isLoading;
+  String?               get error       => _error;
+  GroupService          get service     => _groupService;
 
   String _extractMessage(Object e) {
     final s = e.toString();
@@ -193,6 +196,45 @@ class GroupProvider extends ChangeNotifier {
     try {
       await _groupService.removeMember(groupId, userId);
       _groups = _groups.where((g) => g.id != groupId).toList();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> fetchInvitations() async {
+    try {
+      _invitations = await _groupService.fetchInvitations();
+      notifyListeners();
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+    }
+  }
+
+  Future<GroupModel?> acceptInvitation(String invitationId) async {
+    try {
+      final group = await _groupService.acceptInvitation(invitationId);
+      _invitations = _invitations.where((i) => i.id != invitationId).toList();
+      if (!_groups.any((g) => g.id == group.id)) {
+        _groups = [group, ..._groups];
+      }
+      notifyListeners();
+      return group;
+    } catch (e) {
+      _error = _extractMessage(e);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> declineInvitation(String invitationId) async {
+    try {
+      await _groupService.declineInvitation(invitationId);
+      _invitations = _invitations.where((i) => i.id != invitationId).toList();
       notifyListeners();
       return true;
     } catch (e) {

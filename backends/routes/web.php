@@ -13,7 +13,15 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => redirect()->route('admin.dashboard'));
+// ── Public landing page ───────────────────────────────────────────────────────
+Route::get('/', fn () => view('landing'))->name('landing');
+
+// ── Block register — admin-only system, no self-registration ─────────────────
+Route::get('register', fn () => abort(404))->middleware('guest');
+Route::post('register', fn () => abort(404))->middleware('guest');
+
+// ── Admin entry point — redirects to dashboard (auth middleware handles login) ─
+Route::get('/go-admin', fn () => redirect()->route('admin.dashboard'))->name('go-admin');
 
 // ── Invitation accept/reject — public web links sent via email ────────────────
 Route::get('invitations/{token}/accept', [AdminInvitationController::class, 'accept'])->name('invitations.accept');

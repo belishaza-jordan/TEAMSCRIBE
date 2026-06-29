@@ -339,19 +339,9 @@ class _JoinGroupScreenState extends State<JoinGroupScreen>
 
             AppButton(
               label:     'Send invitation',
-              onPressed: fromGroup ? _inviteByEmail : null,
+              onPressed: _inviteByEmail,
               isLoading: _isLoading,
             ),
-
-            if (!fromGroup) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'Open this screen from a group\'s 🔑 icon to send invitations.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.grayText, fontSize: 12, height: 1.5),
-              ),
-            ],
           ],
         ),
       ),
